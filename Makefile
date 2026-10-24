@@ -8,9 +8,16 @@ UV := cd backend && uv run
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
 
-setup: ## Install dependencies and git hooks (once per checkout or worktree)
+setup: ## Install dependencies (and git hooks, from the main checkout only)
 	cd backend && uv sync
-	$(UV) pre-commit install
+	@# Hooks live in the shared .git and point at one venv. Installing from a worktree would
+	@# point every checkout at that worktree's venv and break all hooks once it is removed.
+	@if [ "$$(git rev-parse --path-format=absolute --git-dir)" = \
+	      "$$(git rev-parse --path-format=absolute --git-common-dir)" ]; then \
+		$(UV) pre-commit install; \
+	else \
+		echo "Worktree: git hooks are shared and already run from the main checkout."; \
+	fi
 
 check: lint types test ## Lint, types, tests without a database. Run before every commit.
 

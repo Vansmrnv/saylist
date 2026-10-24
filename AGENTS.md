@@ -31,7 +31,9 @@ backend/scripts/          new_module.py, module_graph.py
 
 All from the repo root. CI runs exactly these targets, never copies of their commands.
 
-- `make setup` installs dependencies and the git hooks. Run once per checkout or worktree.
+- `make setup` installs dependencies, and the git hooks when run in the main checkout. Run once
+  per checkout or worktree. Never run `pre-commit install` from a worktree: hooks are shared,
+  and pointing them at a worktree's venv broke every hook once that worktree was removed.
 - `make check` runs lint, format check, types and all tests that need no database. Run before
   every commit; it takes seconds.
 - `make db-up` and `make migrate` start Postgres (port 5433) and apply migrations.
