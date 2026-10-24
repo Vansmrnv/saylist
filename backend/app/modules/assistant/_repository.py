@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,3 +45,7 @@ async def recent_turns(session: AsyncSession, conversation_id: int, limit: int) 
 async def add_turn(session: AsyncSession, turn: Turn) -> None:
     session.add(turn)
     await session.flush()
+
+
+async def delete_turns(session: AsyncSession, conversation_id: int) -> None:
+    await session.execute(delete(Turn).where(Turn.conversation_id == conversation_id))

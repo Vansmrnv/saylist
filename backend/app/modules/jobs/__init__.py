@@ -27,6 +27,7 @@ from app.modules.jobs._service import (
     expire_stale,
     get_by_token,
     get_jobs,
+    has_active_jobs,
     list_recent,
     list_recent_offers,
 )
@@ -55,6 +56,7 @@ __all__ = [
     "expire_stale",
     "get_by_token",
     "get_jobs",
+    "has_active_jobs",
     "list_recent",
     "list_recent_offers",
 ]

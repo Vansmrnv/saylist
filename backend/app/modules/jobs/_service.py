@@ -143,6 +143,11 @@ async def get_jobs(session: AsyncSession, job_ids: Sequence[int]) -> list[JobVie
     return [await _view(session, job) for job in await repo.by_ids(session, job_ids)]
 
 
+async def has_active_jobs(session: AsyncSession, business_id: int) -> bool:
+    """Whether the business holds a job that is booked, on the way or at the door."""
+    return await repo.has_active(session, business_id)
+
+
 async def get_by_token(session: AsyncSession, token: str) -> JobView | None:
     job = await repo.get_by_token(session, token)
     return await _view(session, job) if job else None
@@ -288,11 +293,14 @@ async def confirm_request(session: AsyncSession, job_id: int) -> WriteResult:
     job = await repo.get(session, job_id)
     assert job is not None
     offers = [o for o in await repo.offers(session, job.id) if o.answer == OfferAnswer.PROPOSED]
+    sent = 0
     for offer in offers:
         business = await businesses.get(session, offer.business_id)
-        if business is None:
+        if business is None or business.telegram_chat_id is None:  # deleted since the draft
+            offer.answer = OfferAnswer.WITHDRAWN
             continue
         offer.answer = OfferAnswer.WAITING
+        sent += 1
         await messaging.send(
             session,
             key=msg.offer_key(offer.id),
@@ -301,12 +309,22 @@ async def confirm_request(session: AsyncSession, job_id: int) -> WriteResult:
             buttons=msg.offer_buttons(offer),
         )
     trade = businesses.trade_label(job.trade).lower()
-    await _event(session, job, EventKind.SENT, f"Sent to {len(offers)} {trade}(s)")
+    if not sent:
+        await repo.move(session, job.id, [JobStatus.OPEN], {"status": JobStatus.NO_MATCH})
+        job = await repo.get(session, job_id)
+        assert job is not None
+        await _event(session, job, EventKind.NO_MATCH, "Nobody is free at that time")
+        return WriteResult(
+            outcome=Outcome.REFUSED,
+            why=f"No {job.trade} is free any more. Suggest another time and create a new request.",
+            job=await _view(session, job),
+        )
+    await _event(session, job, EventKind.SENT, f"Sent to {sent} {trade}(s)")
     timeout = get_settings().request_timeout_minutes
     return WriteResult(
         outcome=Outcome.DONE,
         why=(
-            f"Sent to {len(offers)} {trade}(s). The first to accept picks a concrete arrival time. "
+            f"Sent to {sent} {trade}(s). The first to accept picks a concrete arrival time. "
             f"Expires in {timeout:g} min if nobody accepts. Give the customer the tracking link: "
             "it shows live when the business is booked, on the way and at the door."
         ),
@@ -342,7 +360,7 @@ async def cancel_request(session: AsyncSession, job_id: int, reason: str) -> Wri
         elif offer.answer == OfferAnswer.ACCEPTED:
             await _refresh_card(session, job, offer)
             business = await businesses.get(session, offer.business_id)
-            if business:
+            if business and business.telegram_chat_id is not None:
                 await messaging.send(
                     session,
                     key=f"job:{job.id}:cancelled",
@@ -363,7 +381,7 @@ async def customer_coming(session: AsyncSession, token: str) -> bool:
     await _event(session, job, EventKind.CUSTOMER_COMING, "You're coming to the door")
     offer = await repo.accepted_offer(session, job.id)
     business = await businesses.get(session, job.business_id) if job.business_id else None
-    if offer and business:
+    if offer and business and business.telegram_chat_id is not None:
         await messaging.send(
             session,
             key=f"job:{job.id}:coming",

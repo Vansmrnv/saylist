@@ -148,3 +148,22 @@ async def create_active(
     business = Business(telegram_chat_id=chat_id, phone=phone, status=BusinessStatus.ACTIVE)
     _apply(business, profile)
     return _view(await repo.add(session, business))
+
+
+async def delete(session: AsyncSession, chat_id: int) -> int | None:
+    """Erase the seller's business at their request: every profile field, the phone and every
+    proposal (the seller's own words). The row stays, anonymous and `deleted`, because past jobs
+    point at it; the chat is released, so writing again starts from scratch. Returns the
+    business id, or None if this chat has no business."""
+    business = await repo.get_by_chat(session, chat_id)
+    if business is None:
+        return None
+    await repo.delete_proposals(session, business.id)
+    _apply(business, Profile())
+    for field in Profile.model_fields:  # _apply leaves defaults (e.g. empty availability)
+        setattr(business, field, None)
+    business.phone = None
+    business.telegram_chat_id = None
+    business.status = BusinessStatus.DELETED
+    await session.flush()
+    return business.id

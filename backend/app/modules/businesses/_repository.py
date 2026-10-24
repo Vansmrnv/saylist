@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.businesses._models import Business, BusinessProposal, ProposalStatus
@@ -64,3 +64,8 @@ async def add_proposal(session: AsyncSession, proposal: BusinessProposal) -> Bus
     session.add(proposal)
     await session.flush()
     return proposal
+
+
+async def delete_proposals(session: AsyncSession, business_id: int) -> None:
+    stmt = delete(BusinessProposal).where(BusinessProposal.business_id == business_id)
+    await session.execute(stmt)

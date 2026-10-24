@@ -7,15 +7,19 @@ seller now sees, so it does not repeat it.
 
 import inspect
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules import businesses
+from app.modules import businesses, jobs
 from app.modules.assistant import _replies
+from app.modules.assistant import _repository as repo
 from app.modules.assistant._schemas import Reply
+
+log = logging.getLogger("assistant")
 
 
 def _tool(name: str, description: str, properties: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -73,6 +77,19 @@ TOOLS: list[dict[str, Any]] = [
         "request_phone",
         "Ask the seller to share their phone number (with the channel's share-contact control).",
     ),
+    _tool(
+        "delete_profile",
+        "Permanently erase the seller's profile, phone, unconfirmed proposals and this "
+        "conversation's history; they stop receiving jobs. Cannot be undone. Call it only after "
+        "you told the seller what will be erased and their latest message clearly confirms it. "
+        "Refused while they hold a booked or ongoing job.",
+        {
+            "seller_confirmation": {
+                "type": "string",
+                "description": "The seller's latest message confirming the deletion, verbatim.",
+            }
+        },
+    ),
 ]
 
 
@@ -91,6 +108,7 @@ class Toolbox:
 
     session: AsyncSession
     chat_id: int
+    conversation_id: int
     replies: list[Reply] = field(default_factory=list)
 
     async def run(self, name: str, args: dict[str, Any]) -> tuple[str, bool]:
@@ -161,3 +179,23 @@ class Toolbox:
     async def _request_phone(self) -> dict[str, Any]:
         self.replies.append(_replies.ask_contact("Please share your phone number."))
         return {"shown": "A request to share the phone number."}
+
+    async def _delete_profile(self, seller_confirmation: str) -> dict[str, Any]:
+        if not seller_confirmation.strip():
+            return {"error": "No confirmation from the seller. Ask them to confirm first."}
+        business = await businesses.get_by_chat(self.session, self.chat_id)
+        if business is None:
+            return {"error": "There is no profile to delete."}
+        if await jobs.has_active_jobs(self.session, business.id):
+            return {
+                "error": "They hold a booked or ongoing job. They must finish it or tap "
+                '"Can\'t make it" on the job message first; then they can ask again.'
+            }
+        await businesses.delete(self.session, self.chat_id)
+        await repo.delete_turns(self.session, self.conversation_id)
+        log.info("business %s deleted on request: %r", business.id, seller_confirmation)
+        return {
+            "deleted": True,
+            "note": "Profile, phone, proposals and the earlier conversation are erased; they get "
+            "no more jobs. If they write again, they start from scratch.",
+        }
