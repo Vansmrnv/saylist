@@ -1,0 +1,67 @@
+# Single entry point for every check. CI calls these targets, never copies of the commands.
+.DEFAULT_GOAL := help
+UV := cd backend && uv run
+
+.PHONY: help setup check lint format types test test-db db-up db-down migrate migration \
+        migration-merge migrations-check new-module worktree ci run
+
+help: ## List targets
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
+
+setup: ## Install dependencies and git hooks (once per checkout or worktree)
+	cd backend && uv sync
+	$(UV) pre-commit install
+
+check: lint types test ## Lint, types, tests without a database. Run before every commit.
+
+lint: ## Ruff lint and format check
+	$(UV) ruff check .
+	$(UV) ruff format --check .
+
+format: ## Apply ruff fixes and formatting
+	$(UV) ruff check --fix .
+	$(UV) ruff format .
+
+types: ## mypy strict
+	$(UV) mypy
+
+test: ## Tests that need no database (includes architecture tests)
+	$(UV) pytest -m "not db" -q
+
+test-db: ## Tests marked db (needs db-up + migrate)
+	$(UV) pytest -m db -q
+
+db-up: ## Start Postgres on localhost:5433
+	docker compose up -d --wait postgres
+
+db-down: ## Stop Postgres (keeps data)
+	docker compose down
+
+migrate: ## Apply migrations
+	$(UV) alembic upgrade head
+
+migration: ## Autogenerate a migration: make migration MSG="add catalog item"
+	@test -n "$(MSG)" || (echo 'usage: make migration MSG="..."' && exit 1)
+	$(UV) alembic revision --autogenerate -m "$(MSG)"
+
+migration-merge: ## Merge two migration heads after parallel branches
+	$(UV) alembic merge heads -m "merge heads"
+
+migrations-check: ## Migrations apply and match the models
+	$(UV) alembic upgrade head
+	$(UV) alembic check
+
+new-module: ## Scaffold a module: make new-module NAME=catalog
+	@test -n "$(NAME)" || (echo 'usage: make new-module NAME=...' && exit 1)
+	$(UV) python -m scripts.new_module $(NAME)
+
+worktree: ## Separate checkout for a parallel agent: make worktree NAME=task-slug
+	@test -n "$(NAME)" || (echo 'usage: make worktree NAME=...' && exit 1)
+	git fetch origin
+	git worktree add ../saylist-$(NAME) -b $(NAME) origin/main
+	@echo "cd ../saylist-$(NAME) && make setup"
+
+ci: check migrations-check test-db ## Everything CI runs (needs db-up)
+
+run: ## Dev server on :8000
+	$(UV) uvicorn app.main:app --reload
