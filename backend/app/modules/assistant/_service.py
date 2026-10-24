@@ -29,10 +29,16 @@ async def handle(session: AsyncSession, inbound: InboundMessage) -> list[Reply]:
 
     chat_id = business_chat_id(conversation)
     failed = False
-    if inbound.kind in (InboundKind.TEXT, InboundKind.VOICE):
-        said = (inbound.text or "").strip()
-        if inbound.kind == InboundKind.VOICE:
-            said = f"[Voice note, transcribed] {said}"
+    language = _replies.language_picked(inbound.choice_value or "")
+    if inbound.kind in (InboundKind.TEXT, InboundKind.VOICE) or (
+        inbound.kind == InboundKind.CHOICE and language
+    ):
+        if language:
+            said = f"[The seller chose the language {language}.] {_replies.WELCOME_BRIEF}"
+        else:
+            said = (inbound.text or "").strip()
+            if inbound.kind == InboundKind.VOICE:
+                said = f"[Voice note, transcribed] {said}"
         past = await repo.recent_turns(session, conversation_id, HISTORY_TURNS)
         try:
             async with session.begin_nested():  # a failed turn leaves no half-made proposal
@@ -40,8 +46,10 @@ async def handle(session: AsyncSession, inbound: InboundMessage) -> list[Reply]:
         except Exception:
             log.exception("assistant turn failed (%s:%s)", inbound.channel, inbound.external_id)
             failed = True
-            replies = [_replies.text(_replies.SORRY)]
+            replies = [_replies.text(_replies.WELCOME if language else _replies.SORRY)]
             transcript = _fixed_transcript(said, replies)
+        if language:
+            replies = await _with_contact_request(session, chat_id, replies)
     else:
         note, replies = await _fixed_turn(session, chat_id, inbound)
         transcript = _fixed_transcript(note, replies)
@@ -66,13 +74,7 @@ async def _fixed_turn(
     """Turns decided by code, not the model: opening the chat, sharing a contact, a choice.
     Confirming is only ever this path (ADR 0003)."""
     if inbound.kind == InboundKind.START:
-        business = await businesses.get_by_chat(session, chat_id)
-        welcome = (
-            _replies.text(_replies.WELCOME)
-            if business and business.phone
-            else _replies.ask_contact(_replies.WELCOME)
-        )
-        return "[The seller opened the chat.]", [welcome]
+        return "[The seller opened the chat.]", [_replies.language_choice()]
     if inbound.kind == InboundKind.CONTACT:
         return f"[The seller shared a phone: {inbound.phone}]", await _save_phone(
             session, chat_id, inbound.phone or ""
@@ -90,6 +92,20 @@ async def _fixed_turn(
     if action == _replies.PHONE:
         return note, await _save_phone(session, chat_id, arg)
     return note, [_replies.text(_replies.STALE_CHOICE)]
+
+
+async def _with_contact_request(
+    session: AsyncSession, chat_id: int, replies: list[Reply]
+) -> list[Reply]:
+    """The welcome asks for the phone: give its last text the channel's share-phone control."""
+    business = await businesses.get_by_chat(session, chat_id)
+    asks = any(r.kind == ReplyKind.ASK_CONTACT for r in replies)
+    if (business and business.phone) or asks or not replies:
+        return replies
+    last = replies[-1]
+    if last.kind != ReplyKind.TEXT:
+        return [*replies, _replies.ask_contact()]
+    return [*replies[:-1], _replies.ask_contact(last.text)]
 
 
 async def _save_phone(session: AsyncSession, chat_id: int, raw: str) -> list[Reply]:

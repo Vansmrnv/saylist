@@ -9,6 +9,22 @@ CHANGE = "change"
 PHONE = "phone"
 PHONE_NO = "phone:no"
 
+LANGUAGE = "lang"  # choice value "lang:<code>"
+
+# Asked first, so the welcome arrives in the seller's language. The model writes the welcome;
+# after that it follows whatever language the seller writes in.
+LANGUAGE_PROMPT = "🌐 Choose a language"
+LANGUAGES = {"en": "🇬🇧 English", "ru": "🇷🇺 Русский", "el": "🇬🇷 Ελληνικά"}
+
+# What the welcome must say; the model writes it in the chosen language.
+WELCOME_BRIEF = (
+    "Write the seller a short welcome. Say that you will bring them jobs from local customers "
+    "with the exact address, a booked time and how to get in, so they don't have to call anyone. "
+    "Ask them to send a voice note or text saying what they do and their business name, the area "
+    "they cover, when they are available and what they charge, and to share their phone number. "
+    "Use a short bullet list for the four things."
+)
+# Used only if the model call fails.
 WELCOME = (
     "👋 Hi! I'll bring you jobs from local customers, with the exact address, a booked time "
     "and how to get in, so you don't have to call anyone.\n\n"
@@ -38,6 +54,22 @@ def text(message: str) -> Reply:
 
 def ask_contact(message: str = ASK_PHONE) -> Reply:
     return Reply(kind=ReplyKind.ASK_CONTACT, text=message)
+
+
+def language_choice() -> Reply:
+    return Reply(
+        kind=ReplyKind.CHOICES,
+        text=LANGUAGE_PROMPT,
+        choices=[
+            Choice(value=f"{LANGUAGE}:{code}", label=label) for code, label in LANGUAGES.items()
+        ],
+    )
+
+
+def language_picked(value: str) -> str | None:
+    """The language label if `value` is a language choice, else None."""
+    action, _, code = value.partition(":")
+    return LANGUAGES.get(code) if action == LANGUAGE else None
 
 
 def profile_card(

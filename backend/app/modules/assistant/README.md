@@ -24,7 +24,12 @@ Holds one conversation with each seller, whatever channel they write from (ADR 0
 
 ## How a turn runs
 
-- `start`, `contact` and `choice` are decided by code (`_service._fixed_turn`): welcome, save the
+- `start` asks for a language (English, Русский, Ελληνικά): the first message the seller gets.
+  Picking one (`lang:<code>`) is a model turn: the model writes the welcome in that language from
+  `_replies.WELCOME_BRIEF`, and it carries the share-phone control if no phone is on file (English
+  fixed welcome if the model fails). After that the model follows the seller's own language; the
+  choice is only in the history.
+- `contact` and other choices are decided by code (`_service._fixed_turn`): save the
   phone (`businesses.set_phone`), confirm (`businesses.confirm`), "tell me what to change".
 - `text` and `voice` go to the model (`_agent.run`): a tool-use loop of at most 6 steps over the
   last 20 turns. Tools (`_tools.py`) are thin wrappers over the `businesses` contract:
