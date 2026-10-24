@@ -1,7 +1,8 @@
 from collections.abc import AsyncIterator
+from enum import StrEnum
 from functools import lru_cache
 
-from sqlalchemy import MetaData
+from sqlalchemy import Enum, MetaData
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -40,3 +41,14 @@ async def get_session() -> AsyncIterator[AsyncSession]:
     """FastAPI dependency. Services flush; the request boundary commits."""
     async with get_sessionmaker()() as session, session.begin():
         yield session
+
+
+def str_enum(enum_cls: type[StrEnum]) -> Enum:
+    """Enums are stored as VARCHAR of their values, so adding a value needs no migration."""
+    return Enum(
+        enum_cls,
+        native_enum=False,
+        create_constraint=False,
+        length=32,
+        values_callable=lambda members: [m.value for m in members],
+    )
