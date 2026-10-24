@@ -155,8 +155,15 @@ async def test_a_whole_seller_conversation_through_a_fake_channel(
     chat = FakeChannel(maker)
 
     hello = await chat.send(InboundKind.START)
-    assert [r.kind for r in hello] == [ReplyKind.ASK_CONTACT]  # no model call for /start
-    assert not model.requests
+    assert [r.kind for r in hello] == [ReplyKind.CHOICES]  # the language, before anything else
+    assert [c.label for c in hello[0].choices] == ["🇬🇧 English", "🇷🇺 Русский", "🇬🇷 Ελληνικά"]
+    assert not model.requests  # no model call for /start
+
+    # The model writes the welcome in the chosen language; it gets the share-phone control.
+    model.script = [_step(text="👋 Здравствуйте!")]
+    welcome = await chat.send(InboundKind.CHOICE, choice_value=chat.choice("🇷🇺"))
+    assert [(r.kind, r.text) for r in welcome] == [(ReplyKind.ASK_CONTACT, "👋 Здравствуйте!")]
+    assert "chose the language 🇷🇺 Русский" in json.dumps(model.requests[0], ensure_ascii=False)
 
     # Describe the business: the model proposes, the seller gets a card to confirm.
     model.script = [
@@ -168,11 +175,12 @@ async def test_a_whole_seller_conversation_through_a_fake_channel(
     assert card.kind == ReplyKind.CARD and card.title == "📝 Your profile (not live yet)"
     assert [c.label for c in card.choices] == ["✅ Correct", "✏️ Change"]
     assert replies[1].text.startswith("Here's your profile")
-    assert "seller opened the chat" in json.dumps(model.requests[0])  # history includes /start
+    sent = json.dumps(model.requests[1], ensure_ascii=False)
+    assert "seller opened the chat" in sent and "Русский" in sent  # history has both turns
 
     # Redelivery of the same message: same replies, no model call, no second proposal.
     calls, proposals = len(model.requests), await _proposals(maker)
-    again = await chat.send(InboundKind.TEXT, message_id="2", text="I'm Nikos, ...")
+    again = await chat.send(InboundKind.TEXT, message_id="3", text="I'm Nikos, ...")
     assert again == replies
     assert len(model.requests) == calls and await _proposals(maker) == proposals
 
@@ -261,9 +269,20 @@ async def test_a_failed_model_call_leaves_nothing_half_done(maker: Any, model: F
     assert "I'm Nikos" in json.dumps(model.requests[-1])
 
 
+async def test_the_welcome_falls_back_to_english_if_the_model_fails(
+    maker: Any, model: FakeLLM
+) -> None:
+    chat = FakeChannel(maker)
+    await chat.send(InboundKind.START)
+    model.script = [llm.LLMError("boom")]
+    welcome = await chat.send(InboundKind.CHOICE, choice_value=chat.choice("🇬🇷"))
+    assert [r.kind for r in welcome] == [ReplyKind.ASK_CONTACT]
+    assert welcome[0].text.startswith("👋 Hi!")
+
+
 async def test_unknown_or_forged_choices_are_refused(maker: Any, model: FakeLLM) -> None:
     chat = FakeChannel(maker)
-    for value in ["confirm:999", "confirm:x", "delete:everything", "phone:not-a-number"]:
+    for value in ["confirm:999", "confirm:x", "delete:everything", "phone:not-a-number", "lang:xx"]:
         replies = await chat.send(InboundKind.CHOICE, choice_value=value)
         assert "Saved" not in replies[0].text and "live" not in replies[0].text
     assert not model.requests
