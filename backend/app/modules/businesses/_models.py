@@ -23,7 +23,8 @@ class Business(Base):
     __tablename__ = "business"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    telegram_chat_id: Mapped[int] = mapped_column(BigInteger, unique=True)
+    # None once the business is deleted, so the same chat can register again.
+    telegram_chat_id: Mapped[int | None] = mapped_column(BigInteger, unique=True)
     phone: Mapped[str | None] = mapped_column(String(40))
     status: Mapped[BusinessStatus] = mapped_column(
         str_enum(BusinessStatus), default=BusinessStatus.DRAFT

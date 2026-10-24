@@ -42,7 +42,9 @@ async def handle(session: AsyncSession, inbound: InboundMessage) -> list[Reply]:
         past = await repo.recent_turns(session, conversation_id, HISTORY_TURNS)
         try:
             async with session.begin_nested():  # a failed turn leaves no half-made proposal
-                transcript, replies = await _agent.run(session, chat_id, past, said)
+                transcript, replies = await _agent.run(
+                    session, chat_id, conversation_id, past, said
+                )
         except Exception:
             log.exception("assistant turn failed (%s:%s)", inbound.channel, inbound.external_id)
             failed = True

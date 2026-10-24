@@ -6,7 +6,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.jobs._models import Job, JobEvent, JobOffer
-from app.modules.jobs._schemas import EventKind, JobStatus, OfferAnswer
+from app.modules.jobs._schemas import ACTIVE_STATUSES, EventKind, JobStatus, OfferAnswer
 
 
 async def add(session: AsyncSession, row: Job | JobOffer | JobEvent) -> None:
@@ -85,3 +85,8 @@ async def events(session: AsyncSession, job_id: int) -> Sequence[JobEvent]:
 async def has_event(session: AsyncSession, job_id: int, kind: EventKind) -> bool:
     stmt = select(JobEvent.id).where(JobEvent.job_id == job_id, JobEvent.kind == kind).limit(1)
     return (await session.execute(stmt)).first() is not None
+
+
+async def has_active(session: AsyncSession, business_id: int) -> bool:
+    stmt = select(Job.id).where(Job.business_id == business_id, Job.status.in_(ACTIVE_STATUSES))
+    return (await session.execute(stmt.limit(1))).first() is not None

@@ -24,6 +24,7 @@ def trade_label(trade: str | None) -> str:
 class BusinessStatus(StrEnum):
     DRAFT = "draft"
     ACTIVE = "active"
+    DELETED = "deleted"  # erased at the seller's request; kept only so past jobs still resolve
 
 
 class ConfirmOutcome(StrEnum):
@@ -74,7 +75,7 @@ class BusinessView(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    telegram_chat_id: int
+    telegram_chat_id: int | None  # None once deleted: the chat is free to start again
     phone: str | None
     status: BusinessStatus
     name: str | None

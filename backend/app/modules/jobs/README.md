@@ -11,6 +11,7 @@ Carries a customer's job from request to done, so neither side has to call the o
 | `draft_request(session, JobRequestIn, channel)` | service | Checks the request (trade, time, an **exact** address), finds who is free and their price. Sends nothing. `DONE` with the draft, `INVALID` with what to ask the customer, or `REFUSED` when nobody is free. |
 | `confirm_request(session, job_id)` | service | Sends the draft's offers through the outbox. `NO_CHANGE` if already sent. |
 | `cancel_request(session, job_id, reason)` | service | Customer cancels before the business is at the door; waiting offers are closed and an assigned business is told. |
+| `has_active_jobs(session, business_id)` | read | Whether the business holds a booked, on-the-way or arrived job. The assistant refuses deletion while it does. |
 | `get_jobs(session, ids)`, `get_by_token(session, token)` | reads | `JobView`: status, a one-line `status_text`, business, booked time, ETA, timeline. |
 | `customer_coming(session, token)` | service | Tracking-page "I'm coming down" button. Pings the business once; only when they are at the door. |
 | `accept_offer(session, offer_id, business_id, option)` | service | The business tapped a time. The first tap claims the job (atomic); the others are told it's taken. Returns a toast. |

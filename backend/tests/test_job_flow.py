@@ -153,6 +153,9 @@ async def test_full_flow_from_draft_to_done(maker: Any) -> None:
         view = (await jobs.get_jobs(session, [job_id]))[0]
     assert view.status == jobs.JobStatus.BOOKED
     assert view.scheduled_for is not None and view.scheduled_for.hour == 17
+    async with maker() as session:
+        assert await jobs.has_active_jobs(session, b)
+        assert not await jobs.has_active_jobs(session, a)
 
     async with maker() as session, session.begin():
         assert (
@@ -172,6 +175,8 @@ async def test_full_flow_from_draft_to_done(maker: Any) -> None:
         )
         view = (await jobs.get_jobs(session, [job_id]))[0]
     assert view.status == jobs.JobStatus.DONE
+    async with maker() as session:
+        assert not await jobs.has_active_jobs(session, b)  # done is not active
     kinds = [e.kind for e in view.timeline]
     assert kinds.count(jobs.EventKind.CUSTOMER_COMING) == 1
     assert kinds[-1] == jobs.EventKind.DONE
@@ -183,6 +188,28 @@ async def test_full_flow_from_draft_to_done(maker: Any) -> None:
     assert "Job done" in final_card
     loser = [text for chat, _, text, _ in telegram.edits if chat == 501][-1]
     assert "taken by someone else" in loser
+
+
+async def test_a_business_deleted_after_the_draft_gets_no_offer(maker: Any) -> None:
+    async with maker() as session, session.begin():
+        a, b, _ = await _seed(session)
+        draft = await jobs.draft_request(session, REQUEST, "assistant")
+        assert draft.job
+        await businesses.delete(session, 501)  # business a
+        confirmed = await jobs.confirm_request(session, draft.job.job_id)
+        assert confirmed.outcome == jobs.Outcome.DONE
+        assert confirmed.why.startswith("Sent to 1 ")
+        offers = await _offers(session, draft.job.job_id)
+        assert offers[a].answer == jobs.OfferAnswer.WITHDRAWN
+        assert offers[b].answer == jobs.OfferAnswer.WAITING
+
+        # Nobody left to send to: the request does not hang open.
+        draft = await jobs.draft_request(session, REQUEST, "assistant")
+        assert draft.job
+        await businesses.delete(session, 502)  # business b
+        result = await jobs.confirm_request(session, draft.job.job_id)
+        assert result.outcome == jobs.Outcome.REFUSED
+        assert result.job and result.job.status == jobs.JobStatus.NO_MATCH
 
 
 async def test_customer_cancel_tells_the_booked_business(maker: Any) -> None:

@@ -36,6 +36,9 @@ and ask them to tap Correct.
 - Answer questions about their profile with get_profile. Never guess what is on it.
 - If they give a phone number in text, call offer_phone. If they still need to share one, \
 request_phone. You cannot save a phone yourself.
+- If they ask to delete their profile or account: say plainly what will be erased (profile, \
+phone, this conversation) and that they will stop getting jobs, and ask them to confirm. Call \
+delete_profile only when their next message clearly says yes. Never suggest deleting yourself.
 - Job requests reach them as separate messages with their own buttons. You cannot accept, \
 decline or change jobs; tell them to use the buttons on the job message.
 
@@ -68,7 +71,7 @@ async def context_note(session: AsyncSession, chat_id: int) -> str:
 
 
 async def run(
-    session: AsyncSession, chat_id: int, past: list[Turn], user_text: str
+    session: AsyncSession, chat_id: int, conversation_id: int, past: list[Turn], user_text: str
 ) -> tuple[list[dict[str, Any]], list[Reply]]:
     """One seller message through the model. Returns this turn's transcript and replies."""
     note = await context_note(session, chat_id)
@@ -76,7 +79,7 @@ async def run(
         {"role": "user", "content": [{"type": "text", "text": f"{note}\n{user_text}"}]}
     ]
     prior = history(past)
-    toolbox = Toolbox(session, chat_id)
+    toolbox = Toolbox(session, chat_id, conversation_id)
     replies: list[Reply] = []
     for _ in range(MAX_STEPS):
         step = await llm.tool_step("seller_assistant", SYSTEM, prior + turn, TOOLS)

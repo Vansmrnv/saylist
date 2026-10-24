@@ -16,6 +16,7 @@ from app.modules.businesses._schemas import (
 from app.modules.businesses._service import (
     confirm,
     create_active,
+    delete,
     get,
     get_by_chat,
     latest_proposal,
@@ -38,6 +39,7 @@ __all__ = [
     "Trade",
     "confirm",
     "create_active",
+    "delete",
     "get",
     "get_by_chat",
     "latest_proposal",

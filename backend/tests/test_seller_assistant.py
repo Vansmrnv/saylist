@@ -13,11 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core import llm
 from app.core.db import get_engine
-from app.modules import assistant, businesses, channels, messaging
+from app.modules import assistant, businesses, channels, jobs, messaging
 from app.modules.assistant import InboundKind, InboundMessage, ReplyKind
 from app.modules.assistant._models import Conversation
 from app.modules.businesses import _ai as business_ai
-from app.modules.businesses._models import BusinessProposal
+from app.modules.businesses._models import Business, BusinessProposal
 from app.modules.messaging._models import OutboxMessage
 from tests.test_job_flow import FakeTelegram
 
@@ -311,3 +311,60 @@ async def test_telegram_replies_go_through_the_outbox_once(maker: Any, model: Fa
     assert [b["callback_data"].rsplit(":", 1)[0] for b in buttons[0]] == ["ch:confirm", "ch:change"]
     assert text == "Is &lt;this&gt; right?"
     assert (await _business(maker, 777)).telegram_chat_id == 777  # Telegram identity = chat id
+
+
+async def _seller_with_a_proposal(maker: Any, chat: FakeChannel) -> int:
+    await chat.send(InboundKind.START)
+    chat_id = await _fake_chat_id(maker, chat.who)
+    async with maker() as session, session.begin():
+        await businesses.propose(session, chat_id, "I'm Nikos, electrician in Limassol")
+    return chat_id
+
+
+async def test_the_seller_deletes_their_profile_by_asking(maker: Any, model: FakeLLM) -> None:
+    chat = FakeChannel(maker)
+    chat_id = await _seller_with_a_proposal(maker, chat)
+    business_id = (await _business(maker, chat_id)).id
+    assert await _proposals(maker) == 1
+
+    model.script = [_step(text="That erases your profile and phone. Are you sure?")]
+    await chat.send(InboundKind.TEXT, text="please delete my profile")
+    model.script = [
+        _step(call=("delete_profile", {"seller_confirmation": "yes, delete it"})),
+        _step(text="Done: your profile is deleted."),
+    ]
+    replies = await chat.send(InboundKind.TEXT, text="yes, delete it")
+    assert [r.text for r in replies] == ["Done: your profile is deleted."]
+
+    assert await _business(maker, chat_id) is None  # the chat is free to start again
+    assert await _proposals(maker) == 0
+    async with maker() as session:
+        row = await session.get(Business, business_id)
+    assert row is not None and row.status == businesses.BusinessStatus.DELETED
+    assert (row.name, row.phone, row.area, row.telegram_chat_id) == (None, None, None, None)
+
+    # The earlier conversation is gone too: only the deletion turn is left in the history.
+    model.script = [_step(text="Hi! Tell me about your business.")]
+    await chat.send(InboundKind.TEXT, text="hello again")
+    sent = json.dumps(model.requests[-1])
+    assert "please delete my profile" not in sent and "yes, delete it" in sent
+
+
+async def test_deletion_is_refused_while_a_job_is_active(
+    maker: Any, model: FakeLLM, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def busy(session: AsyncSession, business_id: int) -> bool:
+        return True
+
+    monkeypatch.setattr(jobs, "has_active_jobs", busy)
+    chat = FakeChannel(maker)
+    chat_id = await _seller_with_a_proposal(maker, chat)
+    model.script = [
+        _step(call=("delete_profile", {"seller_confirmation": "yes"})),
+        _step(text="Finish your current job first."),
+    ]
+    await chat.send(InboundKind.TEXT, text="yes")
+    assert await _business(maker, chat_id) is not None
+    assert await _proposals(maker) == 1
+    result = model.requests[-1][-1]["content"][0]
+    assert result["is_error"] and "booked or ongoing job" in result["content"]

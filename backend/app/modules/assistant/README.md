@@ -34,7 +34,8 @@ Holds one conversation with each seller, whatever channel they write from (ADR 0
 - `text` and `voice` go to the model (`_agent.run`): a tool-use loop of at most 6 steps over the
   last 20 turns. Tools (`_tools.py`) are thin wrappers over the `businesses` contract:
   `get_profile`, `propose_profile_change` (→ `businesses.propose`, shows the card),
-  `show_profile`, `show_pending_proposal`, `offer_phone` (Yes/No choice), `request_phone`.
+  `show_profile`, `show_pending_proposal`, `offer_phone` (Yes/No choice), `request_phone`,
+  `delete_profile` (see below).
 - Every turn, fixed or not, is stored with a transcript, so the model sees taps and contacts too.
 
 ## Invariants
@@ -42,6 +43,11 @@ Holds one conversation with each seller, whatever channel they write from (ADR 0
 - The model cannot confirm a profile or save a phone (ADR 0003). There is no such tool. Confirming
   happens only in `_fixed_turn`, on a `choice` the seller picked (`confirm:<proposal_id>`,
   `phone:<number>`); `businesses.confirm` still refuses anything but the latest proposal.
+- Deleting the profile is the exception: the seller asks and confirms in plain words, with no
+  button (the owner's call). The prompt makes the model say what will be erased and wait for a
+  clear yes. `delete_profile` takes the seller's confirming words, which are logged. It is
+  refused while the seller holds an active job. It also erases this conversation's earlier
+  turns, so only the deletion turn remains.
 - Replies are channel-neutral: no HTML, no Telegram types, no `aiogram` import here. Channels
   render and escape.
 - The system prompt and tool list are constant; per-turn facts (time, status) go into that turn's

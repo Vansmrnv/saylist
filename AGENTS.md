@@ -76,7 +76,7 @@ ask.
 messaging ->
 businesses ->
 jobs -> businesses, messaging
-assistant -> businesses
+assistant -> businesses, jobs
 channels -> assistant, messaging
 ```
 <!-- module-graph:end -->
