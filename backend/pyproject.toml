@@ -4,9 +4,13 @@ version = "0.1.0"
 description = "Turns a small business's dialog into a structured catalog that AI assistants can use."
 requires-python = ">=3.13"
 dependencies = [
+    "aiogram>=3.31.0",
     "alembic>=1.20.1",
+    "anthropic>=2.3.0",
     "asyncpg>=0.32.0",
     "fastapi>=0.162.0",
+    "mcp>=1.12,<2",
+    "openai>=3.37.0",
     "pydantic-settings>=2.16.1",
     "sqlalchemy[asyncio]>=2.1.6",
     "uvicorn[standard]>=0.54.0",
@@ -31,6 +35,8 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "TID", "ASYNC", "RUF"]
+# En dashes in time ranges ("08:00–17:00") are user-facing text.
+allowed-confusables = ["–"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 # Absolute imports only: the architecture test reads import paths literally.

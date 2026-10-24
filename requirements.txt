@@ -1,0 +1,8 @@
+aiogram>=3.13,<4
+anthropic>=0.70
+openai>=1.50
+mcp>=1.12,<2
+uvicorn>=0.30
+starlette>=0.37
+pydantic>=2.7
+python-dotenv>=1.0

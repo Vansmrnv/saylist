@@ -3,7 +3,7 @@
 UV := cd backend && uv run
 
 .PHONY: help setup check lint format types test test-db db-up db-down migrate migration \
-        migration-merge migrations-check new-module worktree ci run
+        migration-merge migrations-check new-module worktree ci run serve seed seed-reset try-llm try-mcp
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -65,3 +65,18 @@ ci: check migrations-check test-db ## Everything CI runs (needs db-up)
 
 run: ## Dev server on :8000
 	$(UV) uvicorn app.main:app --reload
+
+serve: ## Demo server on :8000: web, MCP, Telegram bot and workers, no reload
+	$(UV) uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+seed: ## Add the 4 demo businesses
+	$(UV) python -m scripts.seed
+
+seed-reset: ## Wipe every table, then add the 4 demo businesses
+	$(UV) python -m scripts.seed --reset
+
+try-llm: ## Live check of the prompts on the fixtures (costs a few API calls)
+	$(UV) python -m scripts.try_llm
+
+try-mcp: ## Call the MCP tools like an assistant (server running): make try-mcp URL=http://...
+	$(UV) python -m scripts.try_mcp $(URL)
