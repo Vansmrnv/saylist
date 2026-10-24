@@ -2,6 +2,7 @@ from datetime import datetime
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +23,15 @@ class Settings(BaseSettings):
     public_url: str = ""
     # Start the Telegram bot, outbox worker and expiry loop with the app.
     run_workers: bool = True
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_asyncpg(cls, url: str) -> str:
+        """Hosts such as Railway hand out `postgresql://`; the app needs the asyncpg driver."""
+        for prefix in ("postgresql://", "postgres://"):
+            if url.startswith(prefix):
+                return "postgresql+asyncpg://" + url.removeprefix(prefix)
+        return url
 
     @property
     def tz(self) -> ZoneInfo:
