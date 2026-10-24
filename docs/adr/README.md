@@ -25,6 +25,9 @@ Not for things a linter or a test already pins down.
 | [0004](0004-outbound-messages-go-through-an-outbox.md) | Outbound messages go through an outbox | accepted |
 | [0005](0005-mcp-tool-conventions.md) | MCP tool conventions | accepted |
 | [0007](0007-seller-channels-feed-one-assistant.md) | Seller channels feed one assistant | accepted |
+| [0008](0008-a-business-is-one-entity-both-sides-write-to.md) | A business is one entity both sides write to | proposed |
+| [0009](0009-customer-assistants-use-fixed-verbs-over-business-capabilities.md) | Customer assistants use fixed verbs over business capabilities | proposed |
+| [0010](0010-payments-are-held-until-the-deal-is-fulfilled.md) | Payments are held until the deal is fulfilled | proposed |
 
 ## Template
 
