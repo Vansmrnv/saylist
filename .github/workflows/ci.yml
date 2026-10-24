@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: saylist
+          POSTGRES_PASSWORD: saylist
+          POSTGRES_DB: saylist
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U saylist" --health-interval 2s
+          --health-timeout 3s --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: cd backend && uv sync --locked
+      # Same targets as local; see the Makefile.
+      - run: make check
+      - run: make migrations-check
+      - run: make test-db
