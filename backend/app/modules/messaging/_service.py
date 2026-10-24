@@ -11,7 +11,7 @@ from app.modules.messaging._schemas import Button, OutboxView
 Buttons = Sequence[Sequence[Button]]
 
 
-def _dump(buttons: Buttons | None) -> list[list[dict[str, str | None]]] | None:
+def _dump(buttons: Buttons | None) -> list[list[dict[str, str | bool | None]]] | None:
     return [[b.model_dump() for b in row] for row in buttons] if buttons else None
 
 

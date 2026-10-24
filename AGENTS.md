@@ -38,6 +38,7 @@ All from the repo root. CI runs exactly these targets, never copies of their com
 - `make test-db` runs the tests marked `db`. `make ci` is everything CI runs.
 - `make new-module NAME=x` scaffolds a module and registers it in the graph.
 - `make migration MSG="add catalog item"` autogenerates a migration. Read it before committing.
+- `make chat` talks to the seller assistant from the terminal, without Telegram (ADR 0007).
 
 ## Modules
 
@@ -73,6 +74,8 @@ ask.
 messaging ->
 businesses ->
 jobs -> businesses, messaging
+assistant -> businesses
+channels -> assistant, messaging
 ```
 <!-- module-graph:end -->
 

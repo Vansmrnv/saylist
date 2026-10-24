@@ -13,7 +13,12 @@ from aiogram.exceptions import (
     TelegramNotFound,
     TelegramRetryAfter,
 )
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.modules.messaging import _repository as repo
@@ -58,13 +63,29 @@ def _markup(buttons: list[Any] | None) -> InlineKeyboardMarkup | None:
     )
 
 
+def _send_markup(buttons: list[Any] | None) -> InlineKeyboardMarkup | ReplyKeyboardMarkup | None:
+    """A reply keyboard when any button asks for the contact, else inline buttons."""
+    if buttons and any(b.get("request_contact") for row in buttons for b in row):
+        return ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text=b["text"], request_contact=bool(b.get("request_contact")))
+                    for b in row
+                ]
+                for row in buttons
+            ],
+            resize_keyboard=True,
+        )
+    return _markup(buttons)
+
+
 class TelegramTransport:
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
 
     async def send(self, chat_id: int, text: str, buttons: list[Any] | None) -> int:
         try:
-            msg = await self.bot.send_message(chat_id, text, reply_markup=_markup(buttons))
+            msg = await self.bot.send_message(chat_id, text, reply_markup=_send_markup(buttons))
         except TelegramRetryAfter as e:
             raise RetryLater(e.retry_after) from e
         except (TelegramBadRequest, TelegramForbiddenError, TelegramNotFound) as e:

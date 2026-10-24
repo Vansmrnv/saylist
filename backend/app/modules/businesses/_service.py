@@ -55,6 +55,25 @@ async def pending_profile(session: AsyncSession, business_id: int) -> Profile | 
     return Profile.model_validate(proposal.profile) if proposal else None
 
 
+async def latest_proposal(session: AsyncSession, chat_id: int) -> ProposalView | None:
+    """The open proposal the owner can still confirm (the latest one), if any."""
+    business = await repo.get_by_chat(session, chat_id)
+    if business is None:
+        return None
+    proposal = await repo.latest_open_proposal(session, business.id)
+    if proposal is None:
+        return None
+    profile = Profile.model_validate(proposal.profile)
+    return ProposalView(
+        proposal_id=proposal.id,
+        business_id=business.id,
+        profile=profile,
+        phone=business.phone,
+        business_status=business.status,
+        missing_basics=profile.missing_basics(),
+    )
+
+
 async def propose(session: AsyncSession, chat_id: int, text: str) -> ProposalView:
     """Turn the owner's message into a proposal: a new profile, or an edit of the latest one."""
     business = await _get_or_create(session, chat_id)
