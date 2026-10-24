@@ -12,6 +12,7 @@ Keeps each tradesperson's confirmed profile: trade, hours, prices, contact.
 | `confirm(session, chat_id, proposal_id)` | service | The owner tapped Correct. Applies the proposal if it is the latest one, name and area are known, and a phone is on file. Returns a `ConfirmOutcome`. |
 | `set_phone(session, chat_id, phone)` | service | Saves the phone; applies a proposal that was waiting for it (returns its outcome, else `None`). |
 | `get`, `get_by_chat`, `list_active_for_trade`, `list_all`, `pending_profile` | reads | `BusinessView` / `Profile`. `list_active_for_trade` is what jobs match against. |
+| `latest_proposal(session, chat_id)` | read | The open proposal that `confirm` would accept, as a `ProposalView`, or `None`. Lets the seller assistant re-show the card with its Correct choice. |
 | `create_active(session, chat_id, phone, profile)` | service | Seeding and tests only: a live business without a proposal. |
 | `Profile`, `Availability`, `TimeSlot`, `PriceRule`, `Trade`, `trade_label`, `BusinessStatus`, `ConfirmOutcome`, `BusinessView`, `ProposalView` | schemas | Shapes of the above. |
 

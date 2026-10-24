@@ -3,7 +3,7 @@
 UV := cd backend && uv run
 
 .PHONY: help setup check lint format types test test-db db-up db-down migrate migration \
-        migration-merge migrations-check new-module worktree ci run serve seed seed-reset try-llm try-mcp
+        migration-merge migrations-check new-module worktree ci run serve seed seed-reset try-llm try-mcp chat
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -77,6 +77,9 @@ seed-reset: ## Wipe every table, then add the 4 demo businesses
 
 try-llm: ## Live check of the prompts on the fixtures (costs a few API calls)
 	$(UV) python -m scripts.try_llm
+
+chat: ## Talk to the seller assistant in the terminal, no Telegram: make chat [AS=name]
+	$(UV) python -m scripts.chat $(AS)
 
 try-mcp: ## Call the MCP tools like an assistant (server running): make try-mcp URL=http://...
 	$(UV) python -m scripts.try_mcp $(URL)
